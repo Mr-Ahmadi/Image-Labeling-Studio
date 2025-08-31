@@ -1,0 +1,67 @@
+{
+  "name": "image-labeling-studio",
+  "version": "1.0.0",
+  "description": "An image labeling tool",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "author": "Ali Ahmadi Esfidi",
+  "license": "ISC",
+  "devDependencies": {
+    "autoprefixer": "^10.4.21",
+    "electron": "^37.4.0",
+    "electron-builder": "^24.0.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.12"
+  },
+  "dependencies": {
+    "fs-extra": "^11.3.1",
+    "uuid": "^11.1.0"
+  },
+  "build": {
+    "appId": "com.aliahmadi.imagelabelingstudio",
+    "productName": "Image Labeling Studio",
+    "files": [
+      "**/*",
+      "!node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!node_modules/.bin",
+      "!**/*.map",
+      "!**/*.ts",
+      "!**/*.tsx",
+      "!src/",
+      "!out/",
+      "!build/",
+      {
+        "from": "assets/styles/",
+        "to": "assets/styles/",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "assets/icon.png",
+        "to": "assets/icon.png"
+      }
+    ],
+    "directories": {
+      "buildResources": "assets"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "assets/icon.png"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.png"
+    },
+    "linux": {
+      "target": [
+        "AppImage",
+        "deb"
+      ],
+      "icon": "assets/icon.png"
+    }
+  }
+}

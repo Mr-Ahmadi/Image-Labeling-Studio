@@ -1,0 +1,1770 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-gray-950">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Image Labeling Studio</title>
+  <script src="./assets/styles/tailwindcss.js"></script>
+  <link rel="stylesheet" href="./assets/styles/fontawesome/css/all.min.css" />
+  <style>
+    :root { --teal:#14b8a6; }
+    body { 
+      font-family: 'Inter', sans-serif; 
+      -ms-overflow-style: none; 
+      scrollbar-width: none; 
+      -webkit-user-select: none;
+      -moz-user-select: none;
+      -ms-user-select: none;
+      user-select: none;
+    }
+    input, textarea {
+      -webkit-user-select: text;
+      -moz-user-select: text;
+      -ms-user-select: text;
+      user-select: text;
+    }
+    body::-webkit-scrollbar { display: none; }
+    .canvas-container { 
+      position: relative; 
+      max-width: 100%; 
+      height: 100%; 
+      display: flex; 
+      justify-content: center; 
+      align-items: center; 
+      overflow: hidden; 
+      box-shadow: 0 4px 14px rgba(0,0,0,.5); 
+      background: linear-gradient(145deg, #1f2937, #111827); 
+    }
+    #imageCanvas, .drawing-canvas, #loupeCanvas { 
+      display: block; 
+      image-rendering: pixelated; 
+    }
+    .drawing-canvas { position: absolute; inset: 0; z-index: 10; }
+    #loupeCanvas { 
+      position: absolute; 
+      width: 140px; 
+      height: 140px; 
+      right: 8px; 
+      top: 8px; 
+      z-index: 20; 
+      box-shadow: 0 10px 30px rgba(0,0,0,.35); 
+      pointer-events: none; 
+      transition: all 0.3s ease-in-out; 
+    }
+    .btn-base { 
+      padding: .5rem 1rem; 
+      font-weight: 600; 
+      transition: .2s; 
+      font-size: 0.875rem;
+      box-shadow: 0 2px 4px -1px rgba(0,0,0,.1), 0 1px 2px -1px rgba(0,0,0,.06); 
+    }
+    .btn-base:hover { 
+      transform: translateY(-1px); 
+      box-shadow: 0 4px 6px -2px rgba(0,0,0,.15), 0 2px 4px -2px rgba(0,0,0,.08); 
+    }
+    .btn-teal{ background:#14b8a6; color:#fff;} .btn-teal:hover{ background:#0d9488; }
+    .btn-red{ background:#ef4444; color:#fff;} .btn-red:hover{ background:#dc2626; }
+    .btn-gray{ background:#4b5563; color:#fff;} .btn-gray:hover{ background:#374151; }
+    .btn-blue{ background:#3b82f6; color:#fff;} .btn-blue:hover{ background:#2563eb; }
+    .btn-green{ background:#22c55e; color:#fff;} .btn-green:hover{ background:#16a34a; }
+    .btn-cyan{ background:#06b6d4; color:#111827;} .btn-cyan:hover{ background:#0891b2; color:#fff; }
+    .selected-mode { background:#06b6d4 !important; color:#111827 !important; box-shadow: inset 0 1px 3px rgba(0,0,0,.2); }
+    .custom-scrollbar::-webkit-scrollbar { width: 6px; } 
+    .custom-scrollbar::-webkit-scrollbar-track{ background:#374151; } 
+    .custom-scrollbar::-webkit-scrollbar-thumb{ background:#6b7280; } 
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover{ background:#9ca3af; }
+    .spinner{ border:3px solid rgba(255,255,255,.3); border-top:3px solid #fff; border-radius:50%; width:24px; height:24px; animation:spin 1s linear infinite; }
+    @keyframes spin{0%{transform:rotate(0)}100%{transform:rotate(360deg)}}
+    .custom-title-bar{-webkit-app-region: drag; position: sticky; background:#2e3643; top:0; z-index:50;} .no-drag{-webkit-app-region: no-drag;}
+    .image-list-item{ padding:.4rem .7rem; background:#1f2937; cursor:pointer; color:#e5e7eb; font-size: 0.875rem; margin-bottom: 2px; }
+    .image-list-item.selected{ background-color: #14b8a6; color: #fff; font-weight: 600; }
+    #imageCanvas, .drawing-canvas {
+      display: block;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      image-rendering: pixelated;
+    }
+    .drawing-canvas { z-index: 10; }
+    .canvas-container { position: relative; display: flex; justify-content: center; align-items: center; overflow: hidden; }
+    .logo-container { width: 24px; height: 24px; display: flex; justify-content: center; align-items: center; }
+    .crop-help { font-size: .75rem; color:#9ca3af; }
+    .footer { background: #1a202c; padding: 0.375rem 0.75rem; border-top: 1px solid #2d3748; font-size: 0.75rem; }
+    .directory-path { 
+      max-width: 250px; 
+      overflow: hidden; 
+      text-overflow: ellipsis; 
+      white-space: nowrap; 
+      font-size: 0.75rem;
+    }
+    .window-controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      -webkit-app-region: no-drag;
+    }
+    .window-control {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin: 1px;
+      border: none;
+      cursor: pointer;
+    }
+    .window-control.close { background-color: #ff5f57; }
+    .window-control.minimize { background-color: #febc2e; }
+    .window-control.maximize { background-color: #28c840; }
+    .window-control:hover {
+      filter: brightness(0.9);
+    }
+    .window-title {
+      position: absolute;
+      left: 0;
+      right: 0;
+      text-align: center;
+      pointer-events: none;
+      font-size: 14px;
+      color: #9ca3af;
+      font-weight: bold;
+    }
+    .unsaved-indicator {
+      color: #ef4444;
+      margin-left: 4px;
+    }
+    .truncate-name {
+      max-width: 180px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      display: inline-block;
+      vertical-align: bottom;
+      font-size: 0.875rem;
+    }
+    .progress-bar {
+      height: 4px;
+      background-color: #14b8a6;
+      transition: width 0.3s ease;
+    }
+    .tooltip {
+      position: relative;
+    }
+    .tooltip .tooltip-text {
+      visibility: hidden;
+      width: 100px;
+      background-color: #1f2937;
+      color: #fff;
+      text-align: center;
+      padding: 4px;
+      position: absolute;
+      z-index: 1;
+      bottom: 125%;
+      left: 50%;
+      margin-left: -50px;
+      opacity: 0;
+      transition: opacity 0.3s;
+      font-size: 0.75rem;
+    }
+    .tooltip:hover .tooltip-text {
+      visibility: visible;
+      opacity: 1;
+    }
+    section {
+      margin-bottom: 1rem;
+    }
+    h2 {
+      font-size: 1rem;
+      margin-bottom: 0.5rem;
+    }
+    h3 {
+      font-size: 0.875rem;
+    }
+    aside {
+      padding: 1rem;
+    }
+    .modal-content {
+      padding: 1.5rem;
+    }
+    .btn-sm {
+      padding: 0.375rem 0.75rem;
+      font-size: 0.75rem;
+    }
+    #modal {
+      /* ... existing styles ... */
+      z-index: 9999; /* Increased from 50 to ensure it's always on top */
+    }
+    #modal.modal-visible {
+      display: flex !important;
+    }
+  </style>
+  <style>
+  /* Add these styles to your existing CSS */
+
+  /* Round corners for buttons */
+  .btn-base {
+    border-radius: 0.375rem; /* 6px */
+  }
+
+  /* Round corners for modal content */
+  .modal-content {
+    border-radius: 0.5rem; /* 8px */
+  }
+
+  /* Round corners for aside sections */
+  aside, section {
+    border-radius: 0.5rem; /* 8px */
+  }
+
+  /* Round corners for image list items */
+  .image-list-item {
+    border-radius: 0.25rem; /* 4px */
+  }
+
+
+  /* Round corners for window controls */
+  .window-control {
+    border-radius: 50%;
+  }
+
+  /* Round corners for tooltips */
+  .tooltip .tooltip-text {
+    border-radius: 0.25rem; /* 4px */
+  }
+
+  /* Round corners for classification labels */
+  #classificationLabels div {
+    border-radius: 0.25rem; /* 4px */
+  }
+
+  /* Round corners for segmentation list items */
+  #segmentationList div {
+    border-radius: 0.25rem; /* 4px */
+  }
+
+  /* Round corners for input fields */
+  input, textarea {
+    border-radius: 0.25rem; /* 4px */
+  }
+
+  /* Round corners for progress bar container */
+  .progress-bar-container {
+    border-radius: 0.125rem; /* 2px */
+  }
+</style>
+</head>
+<body class="h-full text-gray-100 flex flex-col bg-gray-950">
+  <script>
+    if (typeof window.api === 'undefined') {
+      window.api = { 
+        minimizeWindow: () => {}, 
+        maximizeWindow: () => {},
+        closeWindow: () => {},
+        selectDirectory: () => Promise.resolve(null),
+        saveProjectData: () => Promise.resolve({ success: false }),
+        loadProjectData: () => Promise.resolve({ success: false }),
+        copyFileToProject: () => Promise.resolve({ success: false }),
+        readProjectImages: () => Promise.resolve({ success: false }),
+        getFileDataUrl: () => Promise.resolve(null),
+        writeFileToProject: () => Promise.resolve({ success: false }),
+        deleteFile: () => Promise.resolve({ success: false }),
+        exportAllData: () => Promise.resolve({ success: false }),
+        saveProjectDataSync: () => ({ success: false }),
+        cleanupProject: () => Promise.resolve({ success: false }),
+        path: {
+          join: (...args) => args.join('/'),
+          basename: (filePath) => filePath.split('/').pop().split('\\').pop(),
+          extname: (filePath) => {
+            const base = filePath.split('/').pop().split('\\').pop();
+            const pos = base.lastIndexOf('.');
+            return pos < 0 ? '' : base.slice(pos);
+          }
+        }
+      };
+    }
+    
+    // Make path available globally
+    const path = window.api.path;
+  </script>
+
+  <header class="custom-title-bar flex justify-between items-center py-1 px-2 shadow-lg">
+    <div class="window-controls">
+      <button class="window-control close" onclick="window.api.closeWindow()"></button>
+      <button class="window-control minimize" onclick="window.api.minimizeWindow()"></button>
+      <button class="window-control maximize" onclick="window.api.maximizeWindow()"></button>
+    </div>
+    <div class="window-title">Image Labeling Studio<span id="unsavedIndicator" class="unsaved-indicator hidden">*</span></div>
+    <div class="flex items-center space-x-2 no-drag">
+      <div class="logo-container">
+        <svg width="28" height="28" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M50 0C22.3858 0 0 22.3858 0 50C0 77.6142 22.3858 100 50 100C77.6142 100 100 77.6142 100 50C100 22.3858 77.6142 0 50 0ZM50 90C27.9086 90 10 72.0914 10 50C10 27.9086 27.9086 10 50 10C72.0914 10 90 27.9086 90 50C90 72.0914 72.0914 90 50 90Z" fill="#14b8a6" fill-opacity="1" />
+          <rect x="30" y="30" width="40" height="40" fill="#1e293b" />
+          <path d="M30 30L30 70L70 70L70 30L30 30Z" stroke="#4fd1c5" stroke-width="5" stroke-linejoin="round" />
+          <rect x="40" y="40" width="10" height="10" fill="#4fd1c5" />
+          <rect x="50" y="40" width="10" height="10" fill="#4fd1c5" />
+          <rect x="40" y="50" width="10" height="10" fill="#4fd1c5" />
+          <path d="M75 25L55 45L40 30L60 10L75 25Z" fill="#4fd1c5" stroke="#1f2937" stroke-width="9" stroke-linejoin="round" />
+          <circle cx="75" cy="25" r="5" fill="#4fd1c5" />
+        </svg>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 overflow-y-auto custom-scrollbar flex flex-col lg:flex-row lg:items-start gap-4 p-4">
+    <aside class="lg:w-1/4 p-4 bg-gray-900 shadow-xl flex flex-col gap-4">
+      <section class="space-y-3">
+        <h2 class="text-base font-semibold text-gray-300">Project</h2>
+        <div class="flex flex-col sm:flex-row gap-2">
+          <button id="newProjectBtn" class="flex-1 btn-base btn-teal tooltip"><i class="fas fa-folder-plus mr-1"></i><span class="tooltip-text">New Project</span></button>
+          <button id="loadProjectBtn" class="flex-1 btn-base btn-blue tooltip"><i class="fas fa-folder-open mr-1"></i><span class="tooltip-text">Load Project</span></button>
+        </div>
+        <div class="flex flex-col sm:flex-row gap-2">
+          <button id="saveProjectBtn" class="flex-1 btn-base btn-green tooltip"><i class="fas fa-save mr-1"></i><span class="tooltip-text">Save Project</span></button>
+           <button id="exportDataBtn" class="flex-1 btn-base btn-green tooltip"><i class="fas fa-file-export mr-1"></i><span class="tooltip-text">Export Data</span></button>
+        </div>
+      </section>
+
+      <section class="space-y-3">
+        <h2 class="text-base font-semibold text-gray-300">Image Management</h2>
+        <input type="file" id="fileInput" accept="image/*" multiple class="hidden" />
+        <div class="flex flex-col sm:flex-row gap-2">
+          <button onclick="document.getElementById('fileInput').click()" class="flex-1 btn-base btn-teal tooltip"><i class="fas fa-plus-circle mr-1"></i><span class="tooltip-text">Add Images</span></button>
+          <button id="removeBtn" class="flex-1 btn-base btn-red tooltip"><i class="fas fa-trash-alt mr-1"></i><span class="tooltip-text">Remove Image</span></button>
+        </div>
+        <div class="flex flex-col sm:flex-row gap-2">
+          <button id="restoreBtn" class="flex-1 btn-base btn-blue tooltip"><i class="fas fa-undo-alt mr-1"></i><span class="tooltip-text">Restore Original</span></button>
+          <button onclick="showAllImagesModal()" class="flex-1 btn-base btn-gray tooltip"><i class="fas fa-images mr-1"></i><span class="tooltip-text">View All Images</span></button>
+        </div>
+        <div id="batchProcessingContainer" class="hidden space-y-2">
+          <div class="flex justify-between text-xs">
+            <span id="batchProgressText">Processing images...</span>
+            <span id="batchProgressPercent">0%</span>
+          </div>
+          <div class="w-full bg-gray-700 h-1.5">
+            <div id="batchProgressBar" class="progress-bar h-1.5" style="width: 0%"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="space-y-3">
+        <h2 class="text-base font-semibold text-gray-300">Mode</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+          <button id="classificationModeBtn" class="btn-base btn-gray tooltip"><i class="fas fa-tag mr-1"></i><span class="tooltip-text">Classification</span></button>
+          <button id="segmentationModeBtn" class="btn-base btn-gray tooltip"><i class="fas fa-cut mr-1"></i><span class="tooltip-text">Segmentation</span></button>
+          <button id="cropModeBtn" class="btn-base btn-gray tooltip"><i class="fas fa-crop mr-1"></i><span class="tooltip-text">Crop</span></button>
+        </div>
+      </section>
+
+      <!-- Segmentation sub-tools -->
+      <section id="segmentationSubMode" class="hidden space-y-2">
+        <h3 class="text-sm font-medium text-gray-400">Segmentation Tool</h3>
+        <div class="flex flex-row gap-2">
+          <button id="polygonBtn" class="flex-1 btn-base btn-gray tooltip"><i class="fas fa-draw-polygon mr-1"></i><span class="tooltip-text">Polygon</span></button>
+          <button id="freehandBtn" class="flex-1 btn-base btn-gray tooltip"><i class="fas fa-signature mr-1"></i><span class="tooltip-text">Freehand</span></button>
+        </div>
+        <div class="flex flex-row gap-2">
+          <button id="undoPointBtn" class="flex-1 btn-base btn-gray tooltip"><i class="fa-solid fa-undo"></i><span class="tooltip-text">Undo</span></button>
+          <button id="finishPolygonBtn" class="flex-1 btn-base btn-cyan hidden tooltip"><i class="fas fa-check-circle mr-1"></i><span class="tooltip-text">Finish</span></button>
+        </div>
+        <div class="flex flex-row gap-2">
+          <button id="toggleLoupeBtn" class="flex-1 btn-base btn-gray tooltip"><i class="fas fa-magnifying-glass mr-1"></i><span class="tooltip-text">Toggle Loupe</span></button>
+          <button id="toggleSnapBtn" class="flex-1 btn-base btn-gray tooltip"><i class="fas fa-magnet mr-1"></i><span class="tooltip-text">Toggle Snap</span></button>
+        </div>
+      </section>
+
+      <!-- Crop sub-tools -->
+      <section id="cropSubMode" class="hidden space-y-2">
+        <h3 class="text-sm font-medium text-gray-400">Crop Tool</h3>
+        <p class="crop-help">Drag to create a rectangle. Drag edges/corners to adjust. Enter = Apply, Esc = Cancel.</p>
+        <div class="flex flex-row gap-2">
+          <button id="newCropBtn" class="flex-1 btn-base btn-gray tooltip"><i class="fas fa-border-style mr-1"></i><span class="tooltip-text">New Crop</span></button>
+          <button id="toggleAspectBtn" class="flex-1 btn-base btn-gray tooltip"><i class="fas fa-link mr-1"></i><span class="tooltip-text">Toggle Aspect</span></button>
+        </div>
+        <div class="flex flex-row gap-2">
+          <button id="applyCropBtn" class="flex-1 btn-base btn-green tooltip"><i class="fas fa-check mr-1"></i><span class="tooltip-text">Apply Crop</span></button>
+          <button id="cancelCropBtn" class="flex-1 btn-base btn-red tooltip"><i class="fas fa-times mr-1"></i><span class="tooltip-text">Cancel Crop</span></button>
+        </div>
+      </section>
+
+      <section class="space-y-3">
+        <h2 class="text-base font-semibold text-gray-300">Navigation</h2>
+        <div class="flex flex-row gap-2">
+          <button id="prevBtn" class="flex-1 btn-base btn-gray tooltip"><i class="fas fa-arrow-left mr-1"></i><span class="tooltip-text">Previous Image</span></button>
+          <button id="nextBtn" class="flex-1 btn-base btn-gray tooltip"><i class="fas fa-arrow-right ml-1"></i><span class="tooltip-text">Next Image</span></button>
+        </div>
+        <div class="text-center text-xs text-gray-400">
+          <span id="currentImageCounter">- / -</span>
+        </div>
+      </section>
+    </aside>
+
+    <div class="flex-1 flex flex-col lg:flex-row lg:items-start gap-4 relative">
+      <section class="flex-1 flex flex-col items-center justify-center p-4 bg-gray-900 shadow-xl">
+        <div class="canvas-container relative w-full h-[70vh] p-2">
+          <canvas id="imageCanvas"></canvas>
+          <canvas id="drawingCanvas" class="drawing-canvas"></canvas>
+          <canvas id="loupeCanvas" class="hidden"></canvas>
+          <div id="loadingIndicator" class="absolute inset-0 flex items-center justify-center bg-gray-900 bg-opacity-75 z-10 hidden"><div class="spinner"></div></div>
+        </div>
+      </section>
+
+      <aside class="lg:w-1/4 p-4 bg-gray-900 shadow-xl flex flex-col gap-4">
+        <section class="space-y-3">
+          <h2 class="text-base font-semibold text-gray-300">Image Info</h2>
+          <div id="imageInfo" class="space-y-2 text-xs text-gray-400">
+            <p>Image: <span id="imageName" class="font-bold text-gray-200 truncate-name">No image loaded</span></p>
+            <p>Dimensions: <span id="imageDimensions" class="font-bold text-gray-200">-- x --</span></p>
+            <p>Status: <span id="statusMessage" class="text-teal-400 font-medium">Ready to load an image.</span></p>
+          </div>
+        </section>
+
+        <section id="classificationSection" class="space-y-3">
+          <h2 class="text-base font-semibold text-gray-300">Classification Labels</h2>
+          <div id="classificationLabels" class="flex flex-wrap gap-1"></div>
+          <div id="commonClassificationLabels" class="space-y-2">
+            <h3 class="text-sm font-medium text-gray-400">Common Labels</h3>
+            <div id="commonClassificationLabelsContainer" class="flex flex-wrap gap-1"></div>
+          </div>
+          <div class="flex flex-col gap-1">
+            <input type="text" id="newClassificationInput" placeholder="Add new label..." class="flex-1 p-2 bg-gray-800 text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-teal-500 text-sm" />
+            <button id="addClassificationBtn" class="btn-base btn-teal btn-sm">Add Label</button>
+          </div>
+        </section>
+
+        <section id="segmentationSection" class="hidden space-y-3">
+          <h2 class="text-base font-semibold text-gray-300">Segmentation Masks</h2>
+          <p id="segmentationInstruction" class="text-xs text-gray-400"></p>
+          <div id="commonSegmentationLabels" class="space-y-2">
+            <h3 class="text-sm font-medium text-gray-400">Common Labels</h3>
+            <div id="commonSegmentationLabelsContainer" class="flex flex-wrap gap-1"></div>
+          </div>
+          <div id="segmentationList" class="space-y-2 max-h-48 overflow-y-auto custom-scrollbar"></div>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <footer class="footer flex items-center justify-between text-xs text-gray-400">
+    <div class="flex items-center">
+      <span class="mr-1">Project Directory:</span>
+      <span id="projectDirectory" class="directory-path bg-gray-800 px-2 py-0.5">No directory selected</span>
+    </div>
+    <div id="batchStatus" class="hidden">
+      <span class="text-teal-400">Processing images...</span>
+    </div>
+  </footer>
+
+  <!-- Message Modal -->
+  <div id="modal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center p-4 z-50">
+    <div class="bg-gray-800 p-6 max-w-sm w-full text-center space-y-4 shadow-2xl modal-content">
+      <p id="modalEmoji" class="text-5xl text-teal-400 mb-1"></p>
+      <h3 id="modalTitle" class="text-xl font-bold text-teal-400"></h3>
+      <p id="modalMessage" class="text-gray-300 text-sm"></p>
+      <button id="modalCloseBtn" class="btn-base btn-teal btn-sm">OK</button>
+    </div>
+  </div>
+
+  <!-- Name Segment Modal -->
+  <div id="segmentNameModal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center p-4 z-50">
+    <div class="bg-gray-800 p-6 max-w-sm w-full text-center space-y-4 shadow-2xl modal-content">
+      <h3 class="text-xl font-bold text-teal-400">Name Your Segment</h3>
+      <div id="commonLabelsInModal" class="flex flex-wrap gap-1 justify-center mb-3"></div>
+      <input type="text" id="segmentNameInput" placeholder="Enter name for the segment..." class="w-full p-2 bg-gray-700 text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-teal-500 text-sm" />
+      <div class="flex gap-2 justify-center mt-3">
+        <button id="saveSegmentBtn" class="btn-base btn-green btn-sm">Save</button>
+        <button id="cancelSegmentBtn" class="btn-base btn-gray btn-sm">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- All Images Modal -->
+  <div id="allImagesModal" class="fixed inset-0 bg-black bg-opacity-75 hidden items-center justify-center p-4 z-50">
+    <div class="bg-gray-800 p-6 max-w-xl w-full text-left space-y-4 shadow-2xl modal-content">
+      <div class="flex justify-between items-center"><h3 class="text-xl font-bold text-teal-400">All Images</h3><button onclick="closeAllImagesModal()" class="text-red-400 hover:text-red-500 text-2xl font-bold"><i class="fas fa-times-circle"></i></button></div>
+      <input type="text" id="imageSearchInput" placeholder="Search images..." class="w-full p-2 bg-gray-700 text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-teal-500 text-sm" />
+      <div id="imageListContainer" class="space-y-1 max-h-80 overflow-y-auto custom-scrollbar"></div>
+    </div>
+  </div>
+
+  <script>
+    // ===== Elements =====
+    const fileInput = document.getElementById('fileInput');
+    const imageCanvas = document.getElementById('imageCanvas');
+    const drawingCanvas = document.getElementById('drawingCanvas');
+    const loupeCanvas = document.getElementById('loupeCanvas');
+    const canvasContainer = document.querySelector('.canvas-container');
+    const ctx = imageCanvas.getContext('2d', { willReadFrequently: true });
+    const drawingCtx = drawingCanvas.getContext('2d', { willReadFrequently: true });
+    const loupeCtx = loupeCanvas.getContext('2d');
+
+    const classificationModeBtn = document.getElementById('classificationModeBtn');
+    const segmentationModeBtn = document.getElementById('segmentationModeBtn');
+    const cropModeBtn = document.getElementById('cropModeBtn');
+
+    const segmentationSubMode = document.getElementById('segmentationSubMode');
+    const cropSubMode = document.getElementById('cropSubMode');
+
+    const polygonBtn = document.getElementById('polygonBtn');
+    const freehandBtn = document.getElementById('freehandBtn');
+
+    const classificationSection = document.getElementById('classificationSection');
+    const segmentationSection = document.getElementById('segmentationSection');
+    const segmentationInstruction = document.getElementById('segmentationInstruction');
+
+    const newClassificationInput = document.getElementById('newClassificationInput');
+    const addClassificationBtn = document.getElementById('addClassificationBtn');
+    const classificationLabels = document.getElementById('classificationLabels');
+    const segmentationList = document.getElementById('segmentationList');
+
+    const prevBtn = document.getElementById('prevBtn');
+    const nextBtn = document.getElementById('nextBtn');
+    const exportDataBtn = document.getElementById('exportDataBtn');
+
+    const modal = document.getElementById('modal');
+    const modalCloseBtn = document.getElementById('modalCloseBtn');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalMessage = document.getElementById('modalMessage');
+    const modalEmoji = document.getElementById('modalEmoji');
+
+    const segmentNameModal = document.getElementById('segmentNameModal');
+    const segmentNameInput = document.getElementById('segmentNameInput');
+    const saveSegmentBtn = document.getElementById('saveSegmentBtn');
+    const cancelSegmentBtn = document.getElementById('cancelSegmentBtn');
+
+    const commonClassificationLabelsContainer = document.getElementById('commonClassificationLabelsContainer');
+    const commonSegmentationLabelsContainer = document.getElementById('commonSegmentationLabelsContainer');
+    const commonLabelsInModal = document.getElementById('commonLabelsInModal');
+
+    const allImagesModal = document.getElementById('allImagesModal');
+    const imageListContainer = document.getElementById('imageListContainer');
+    const imageSearchInput = document.getElementById('imageSearchInput');
+
+    const finishPolygonBtn = document.getElementById('finishPolygonBtn');
+    const undoPointBtn = document.getElementById('undoPointBtn');
+    const loadingIndicator = document.getElementById('loadingIndicator');
+    const toggleLoupeBtn = document.getElementById('toggleLoupeBtn');
+    const toggleSnapBtn = document.getElementById('toggleSnapBtn');
+    const removeBtn = document.getElementById('removeBtn');
+    const restoreBtn = document.getElementById('restoreBtn');
+
+    // Project elements
+    const newProjectBtn = document.getElementById('newProjectBtn');
+    const loadProjectBtn = document.getElementById('loadProjectBtn');
+    const saveProjectBtn = document.getElementById('saveProjectBtn');
+    const projectDirectoryEl = document.getElementById('projectDirectory');
+    const unsavedIndicator = document.getElementById('unsavedIndicator');
+
+    // Crop controls
+    const newCropBtn = document.getElementById('newCropBtn');
+    const toggleAspectBtn = document.getElementById('toggleAspectBtn');
+    const applyCropBtn = document.getElementById('applyCropBtn');
+    const cancelCropBtn = document.getElementById('cancelCropBtn');
+
+    // Batch processing elements
+    const batchProcessingContainer = document.getElementById('batchProcessingContainer');
+    const batchProgressText = document.getElementById('batchProgressText');
+    const batchProgressPercent = document.getElementById('batchProgressPercent');
+    const batchProgressBar = document.getElementById('batchProgressBar');
+    const batchStatus = document.getElementById('batchStatus');
+    const currentImageCounter = document.getElementById('currentImageCounter');
+
+    // ===== State =====
+    const initialCommonClassificationLabels = [];
+    const initialCommonSegmentationLabels = [];
+
+    const LOUPE_SCALE = 4; // loupe magnification
+    const CLOSE_RADIUS = 8; // px in image space
+
+    const HANDLE_SIZE = 10; // px in image space (rendered crisp)
+    const MIN_CROP = 8; // minimum crop size in px
+
+    let state = {
+      images: [],
+      currentImageIndex: -1,
+      mode: 'classification', // 'classification' | 'segmentation' | 'crop'
+      segmentationMode: 'polygon', // 'polygon' | 'freehand'
+      isDrawing: false,
+      tempSegmentPoints: [],
+      isLoading: false,
+      mousePosition: { x: 0, y: 0 },
+      draggingVertex: { active: false, index: -1 },
+      snapToFirst: true,         // start ON by default
+      loupeEnabled: true,
+      labelUsage: { classification: {}, segmentation: {} },
+      originalImageWidth: 0,
+      originalImageHeight: 0,
+      loupePosition: 'right', // 'right' | 'left'
+      projectDirectory: null,
+      projectData: null,
+      isSaved: true,
+      isBatchProcessing: false,
+
+      // Crop state
+      crop: {
+        active: false,
+        rect: null, // {x,y,w,h}
+        drag: { mode: null, offsetX: 0, offsetY: 0 }, // mode: 'move'|'nw'|'ne'|'sw'|'se'|'n'|'s'|'e'|'w'|null
+        aspectLocked: false,
+        aspect: null // w/h when locked
+      }
+    };
+
+    // ===== Utilities =====
+    function showMessage(title, message, emoji='ℹ️') {
+      modalEmoji.textContent = emoji; 
+      modalTitle.textContent = title; 
+      modalMessage.textContent = message; 
+      modal.style.display = 'flex';
+      modal.classList.add('modal-visible'); // Add this line
+    }
+    modalCloseBtn.onclick = () => {
+      modal.style.display = 'none';
+      modal.classList.remove('modal-visible'); // Add this line
+    };
+    function truncateFileName(name, maxLength = 25) {
+      if (name.length <= maxLength) return name;
+      return name.substring(0, maxLength - 3) + '...';
+    }
+
+    function trackLabelUsage(type, label){ state.labelUsage[type][label] = (state.labelUsage[type][label]||0)+1; }
+    function untrackLabelUsage(type, label) {
+      if (state.labelUsage[type][label]) {
+        state.labelUsage[type][label]--;
+        if (state.labelUsage[type][label] <= 0) {
+          delete state.labelUsage[type][label];
+        }
+      }
+    }
+    function initializeLabelUsageFromProject() {
+      state.labelUsage = { classification: {}, segmentation: {} };
+      
+      state.images.forEach(img => {
+        img.labels.forEach(label => {
+          trackLabelUsage('classification', label);
+        });
+        img.segmentationMasks.forEach(mask => {
+          trackLabelUsage('segmentation', mask.name);
+        });
+      });
+    }
+    function getMostUsedLabels(type) {
+      const usage = state.labelUsage[type];
+      if (!Object.keys(usage).length) return type === 'classification' ? initialCommonClassificationLabels : initialCommonSegmentationLabels;
+      
+      // Filter out labels with zero usage and get top 10
+      return Object.entries(usage)
+        .filter(([_, count]) => count > 0)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10)
+        .map(([k]) => k);
+    }
+    function renderCommonLabels(labels, container, clickHandler){
+      container.innerHTML='';
+      labels.forEach(label=>{
+        const b=document.createElement('button');
+        b.textContent=label;
+        b.className='btn-base bg-gray-700 hover:bg-gray-600 text-white text-xs rounded-full';
+        b.addEventListener('click',()=>clickHandler(label));
+        container.appendChild(b);
+      });
+    }
+
+    function clamp(n,min,max){ return Math.max(min, Math.min(max,n)); }
+    function dist(a,b){ const dx=a.x-b.x, dy=a.y-b.y; return Math.hypot(dx,dy); }
+
+    // Map client coords -> image pixel coords
+    function getCanvasCoordinates(e){
+      const rect = drawingCanvas.getBoundingClientRect();
+      const scaleX = drawingCanvas.width / rect.width;
+      const scaleY = drawingCanvas.height / rect.height;
+      const x = (e.clientX - rect.left) * scaleX;
+      const y = (e.clientY - rect.top) * scaleY;
+      return { x: +x.toFixed(2), y: +y.toFixed(2) };
+    }
+
+    function updateLoupe() {
+      if (!state.loupeEnabled || state.currentImageIndex===-1) { loupeCanvas.classList.add('hidden'); return; }
+      const img = state.images[state.currentImageIndex]?.imgObject; if (!img) return;
+      loupeCanvas.width = 140; loupeCanvas.height = 140; loupeCanvas.classList.remove('hidden');
+
+      if (state.loupePosition === 'right') { loupeCanvas.style.left = 'auto'; loupeCanvas.style.right = '8px'; }
+      else { loupeCanvas.style.left = '8px'; loupeCanvas.style.right = 'auto'; }
+
+      const sx = clamp(state.mousePosition.x - (loupeCanvas.width/(2*LOUPE_SCALE)), 0, imageCanvas.width - loupeCanvas.width/LOUPE_SCALE);
+      const sy = clamp(state.mousePosition.y - (loupeCanvas.height/(2*LOUPE_SCALE)), 0, imageCanvas.height - loupeCanvas.height/LOUPE_SCALE);
+      loupeCtx.imageSmoothingEnabled = false;
+      loupeCtx.clearRect(0,0,loupeCanvas.width,loupeCanvas.height);
+      loupeCtx.drawImage(imageCanvas, sx, sy, loupeCanvas.width/LOUPE_SCALE, loupeCanvas.height/LOUPE_SCALE, 0, 0, loupeCanvas.width, loupeCanvas.height);
+      loupeCtx.drawImage(drawingCanvas, sx, sy, loupeCanvas.width/LOUPE_SCALE, loupeCanvas.height/LOUPE_SCALE, 0, 0, loupeCanvas.width, loupeCanvas.height);
+      // crosshair
+      loupeCtx.beginPath();
+      loupeCtx.moveTo(loupeCanvas.width/2, 0); loupeCtx.lineTo(loupeCanvas.width/2, loupeCanvas.height);
+      loupeCtx.moveTo(0, loupeCanvas.height/2); loupeCtx.lineTo(loupeCanvas.width, loupeCanvas.height/2);
+      loupeCtx.lineWidth = 1; loupeCtx.strokeStyle = 'rgba(255,255,255,.9)'; loupeCtx.stroke();
+      loupeCtx.strokeRect(0.5,0.5,loupeCanvas.width-1,loupeCanvas.height-1);
+    }
+
+    // Update title with unsaved indicator
+    function updateTitle() {
+      const titleElement = document.querySelector('.window-title');
+      if (titleElement) {
+        titleElement.textContent = 'Image Labeling Studio' + (state.isSaved ? '' : ' *');
+      }
+      unsavedIndicator.classList.toggle('hidden', state.isSaved);
+    }
+
+    function markAsUnsaved() {
+      state.isSaved = false;
+      updateTitle();
+      // Schedule auto-save
+      clearTimeout(window.autoSaveTimeout);
+      window.autoSaveTimeout = setTimeout(autoSaveProject, 2000);
+    }
+
+    // ===== Auto Save =====
+    async function autoSaveProject() {
+      if (state.projectDirectory && !state.isSaved) {
+        await saveProject(true); // true means it's an auto-save
+      }
+    }
+
+    // ===== UI & Render =====
+    function updateUI(){
+      const currentImage = state.images[state.currentImageIndex];
+      document.getElementById('statusMessage').textContent = state.isLoading? 'Loading images...' : currentImage? `Showing image ${state.currentImageIndex+1} of ${state.images.length}` : 'Ready to load an image.';
+      document.getElementById('imageName').textContent = currentImage? truncateFileName(currentImage.name) : 'No image loaded';
+      document.getElementById('imageDimensions').textContent = currentImage? `${currentImage.originalWidth} x ${currentImage.originalHeight}` : '-- x --';
+      currentImageCounter.textContent = `${state.currentImageIndex + 1} / ${state.images.length}`;
+
+      // Update project directory display
+      projectDirectoryEl.textContent = state.projectDirectory || 'No directory selected';
+
+      // Mode toggles
+      classificationModeBtn.classList.toggle('selected-mode', state.mode==='classification');
+      segmentationModeBtn.classList.toggle('selected-mode', state.mode==='segmentation');
+      cropModeBtn.classList.toggle('selected-mode', state.mode==='crop');
+
+      segmentationSubMode.classList.toggle('hidden', state.mode!=='segmentation');
+      cropSubMode.classList.toggle('hidden', state.mode!=='crop');
+
+      classificationSection.classList.toggle('hidden', state.mode!=='classification');
+      segmentationSection.classList.toggle('hidden', state.mode!=='segmentation');
+
+      polygonBtn.classList.toggle('selected-mode', state.segmentationMode==='polygon');
+      freehandBtn.classList.toggle('selected-mode', state.segmentationMode==='freehand');
+      segmentationInstruction.textContent = state.segmentationMode==='polygon'
+        ? 'Click to add vertices. Drag a vertex to adjust. Close near the first point or press Finish. Z=Undo, Esc=Cancel.'
+        : 'Click and drag to draw. Release to open naming dialog.';
+
+      toggleLoupeBtn.classList.toggle('selected-mode', state.loupeEnabled);
+
+      // Ensure SNAP button reflects current state (default ON at app start)
+      toggleSnapBtn.classList.toggle('selected-mode', state.snapToFirst);
+
+      // Classification list
+      classificationLabels.innerHTML = '';
+      if (currentImage?.labels) currentImage.labels.forEach((label, index)=>{
+        const div=document.createElement('div'); div.className='flex items-center gap-1 bg-gray-700 px-2 py-1 text-xs';
+        div.innerHTML=`<span>${label}</span><button class="text-red-400 hover:text-red-500 text-xs"><i class="fas fa-times-circle"></i></button>`;
+        div.querySelector('button').onclick = () => { 
+          const removedLabel = currentImage.labels[index];
+          currentImage.labels.splice(index, 1);
+          untrackLabelUsage('classification', removedLabel);
+          markAsUnsaved();
+          updateUI();
+        };
+        classificationLabels.appendChild(div);
+      });
+
+      // Segmentation list
+      segmentationList.innerHTML='';
+      if (currentImage?.segmentationMasks) currentImage.segmentationMasks.forEach(mask=>{
+        const item=document.createElement('div'); item.className='flex justify-between items-center bg-gray-700 p-2 text-xs';
+        const pts = mask.points.length;
+        item.innerHTML=`<span class="truncate">${mask.name} <span class="text-xs text-gray-300">(${pts} pts)</span></span>
+          <div class="flex gap-1 items-center">
+            <button title="Show" class="text-cyan-300 hover:text-cyan-200"><i class="fas fa-eye"></i></button>
+            <button title="Delete" class="text-red-400 hover:text-red-500"><i class="fas fa-trash-alt"></i></button>
+          </div>`;
+        item.querySelectorAll('button')[0].onclick=()=>{ flashMask(mask.id); };
+        item.querySelectorAll('button')[1].onclick=()=>{ removeMask(mask.id); };
+        segmentationList.appendChild(item);
+      });
+
+      // Nav buttons
+      prevBtn.disabled = state.currentImageIndex<=0 || state.isLoading;
+      nextBtn.disabled = state.currentImageIndex>=state.images.length-1 || state.isLoading;
+      prevBtn.classList.toggle('opacity-50', prevBtn.disabled);
+      nextBtn.classList.toggle('opacity-50', nextBtn.disabled);
+
+      renderCommonLabels(getMostUsedLabels('classification'), commonClassificationLabelsContainer, addClassificationLabel);
+      renderCommonLabels(getMostUsedLabels('segmentation'), commonSegmentationLabelsContainer, (label)=>{ segmentNameInput.value=label; });
+
+      // Finish/Undo availability
+      const canFinish = (state.mode==='segmentation' && state.segmentationMode==='polygon' && state.tempSegmentPoints.length>2);
+      finishPolygonBtn.classList.toggle('hidden', !canFinish);
+      finishPolygonBtn.disabled = !canFinish;
+      undoPointBtn.disabled = !(state.mode==='segmentation' && state.tempSegmentPoints.length>0);
+      undoPointBtn.classList.toggle('opacity-50', undoPointBtn.disabled);
+
+      // Batch processing UI
+      batchProcessingContainer.classList.toggle('hidden', !state.isBatchProcessing);
+      batchStatus.classList.toggle('hidden', !state.isBatchProcessing);
+    }
+
+    function drawAll(){
+      const currentImage = state.images[state.currentImageIndex];
+      if (!currentImage?.imgObject){ ctx.clearRect(0,0,imageCanvas.width,imageCanvas.height); drawingCtx.clearRect(0,0,drawingCanvas.width,drawingCanvas.height); updateUI(); return; }
+
+      const img = currentImage.imgObject;
+      const containerW = canvasContainer.clientWidth, containerH = canvasContainer.clientHeight;
+      const imageAR = img.width / img.height, containerAR = containerW / containerH;
+      let renderW, renderH; if (imageAR > containerAR) { renderW = containerW; renderH = containerW / imageAR; } else { renderH = containerH; renderW = containerH * imageAR; }
+
+      // Keep intrinsic size == image pixels for exact mapping
+      imageCanvas.width = img.width; imageCanvas.height = img.height;
+      drawingCanvas.width = img.width; drawingCanvas.height = img.height;
+
+      // Fit via CSS sizing only
+      [imageCanvas.style.width, imageCanvas.style.height] = [`${renderW}px`, `${renderH}px`];
+      [drawingCanvas.style.width, drawingCanvas.style.height] = [`${renderW}px`, `${renderH}px`];
+
+      // Draw image
+      ctx.imageSmoothingEnabled = false; drawingCtx.imageSmoothingEnabled = false;
+      ctx.clearRect(0,0,img.width,img.height); ctx.drawImage(img,0,0,img.width,img.height);
+      drawingCtx.clearRect(0,0,img.width,img.height);
+
+      // Existing masks
+      if (currentImage.segmentationMasks && state.mode!=='crop') currentImage.segmentationMasks.forEach(mask=>{
+        drawPolygon(mask.points, { stroke:'rgba(255, 0, 0, .95)', fill:'rgba(255,0,0,.18)', close:true });
+      });
+
+      // In-progress segmentation
+      if (state.mode==='segmentation' && state.tempSegmentPoints.length){
+        if (state.segmentationMode==='polygon'){
+          const closing = (state.snapToFirst && state.tempSegmentPoints.length>2 && dist(state.mousePosition, state.tempSegmentPoints[0]) <= CLOSE_RADIUS);
+          const previewPts = [...state.tempSegmentPoints, state.mousePosition];
+          drawPolygon(previewPts, { stroke:'rgba(255,255,0,.95)', dashed:true, close:false });
+          state.tempSegmentPoints.forEach((p,i)=> drawHandle(p, i===0? (closing? '#22c55e':'#06b6d4') : '#06b6d4'));
+        } else {
+          drawPolygon(state.tempSegmentPoints, { stroke:'rgba(255,255,0,.95)', close:false });
+        }
+      }
+
+      // Crop overlay
+      if (state.mode==='crop' && state.crop.rect){
+        drawCropOverlay(state.crop.rect, state.crop.aspectLocked);
+      }
+
+      updateLoupe();
+      updateUI();
+    }
+
+    function drawPolygon(points, { stroke='rgba(255,0,0,.9)', fill=null, dashed=false, close=true }={}){
+      if (!points.length) return;
+      drawingCtx.save();
+      drawingCtx.beginPath();
+      if (dashed) drawingCtx.setLineDash([6,6]); else drawingCtx.setLineDash([]);
+      drawingCtx.lineWidth = 2.5; drawingCtx.strokeStyle = stroke; drawingCtx.moveTo(points[0].x, points[0].y);
+      for (let i=1;i<points.length;i++){ drawingCtx.lineTo(points[i].x, points[i].y); }
+      if (close) drawingCtx.closePath();
+      if (fill){ drawingCtx.fillStyle = fill; drawingCtx.fill('nonzero'); }
+      drawingCtx.stroke();
+      drawingCtx.restore();
+    }
+
+    function drawHandle(p, color='#06b6d4'){
+      drawingCtx.save(); drawingCtx.beginPath(); drawingCtx.arc(p.x, p.y, 5, 0, Math.PI*2); drawingCtx.fillStyle = color; drawingCtx.fill(); drawingCtx.lineWidth=1.5; drawingCtx.strokeStyle='#111827'; drawingCtx.stroke(); drawingCtx.restore();
+    }
+
+    function flashMask(id){
+      const img = state.images[state.currentImageIndex];
+      const mask = img.segmentationMasks.find(m=>m.id===id); if (!mask) return;
+      let t=0, iv=setInterval(()=>{ t++; drawAll(); drawPolygon(mask.points, { stroke:'rgba(59,130,246,.95)', fill:'rgba(59,130,246,.22)', close:true }); if (t>12) clearInterval(iv); }, 50);
+    }
+
+    // ===== Crop Drawing =====
+    function drawCropOverlay(rect, aspectLocked){
+      // Darken outside area
+      drawingCtx.save();
+      drawingCtx.fillStyle = 'rgba(0,0,0,0.5)';
+      drawingCtx.fillRect(0,0,drawingCanvas.width,drawingCanvas.height);
+      drawingCtx.clearRect(rect.x, rect.y, rect.w, rect.h);
+
+      // Border
+      drawingCtx.strokeStyle = 'rgba(59,130,246,0.95)'; // blue
+      drawingCtx.lineWidth = 2;
+      drawingCtx.strokeRect(rect.x+0.5, rect.y+0.5, rect.w-1, rect.h-1);
+
+      // Grid (rule of thirds)
+      drawingCtx.setLineDash([4,4]);
+      drawingCtx.beginPath();
+      const x1 = rect.x + rect.w/3, x2 = rect.x + 2*rect.w/3;
+      const y1 = rect.y + rect.h/3, y2 = rect.y + 2*rect.h/3;
+      drawingCtx.moveTo(x1, rect.y); drawingCtx.lineTo(x1, rect.y+rect.h);
+      drawingCtx.moveTo(x2, rect.y); drawingCtx.lineTo(x2, rect.y+rect.h);
+      drawingCtx.moveTo(rect.x, y1); drawingCtx.lineTo(rect.x+rect.w, y1);
+      drawingCtx.moveTo(rect.x, y2); drawingCtx.lineTo(rect.x+rect.w, y2);
+      drawingCtx.strokeStyle='rgba(255,255,255,0.6)'; drawingCtx.stroke();
+
+      // Handles (corners + edges)
+      drawingCtx.setLineDash([]);
+      const handles = cropHandles(rect);
+      handles.forEach(h=>{
+        drawingCtx.fillStyle = 'rgba(20,184,166,0.95)'; // teal
+        drawingCtx.fillRect(h.x - HANDLE_SIZE/2, h.y - HANDLE_SIZE/2, HANDLE_SIZE, HANDLE_SIZE);
+        drawingCtx.strokeStyle='#111827'; drawingCtx.lineWidth=1;
+        drawingCtx.strokeRect(h.x - HANDLE_SIZE/2+0.5, h.y - HANDLE_SIZE/2+0.5, HANDLE_SIZE-1, HANDLE_SIZE-1);
+      });
+
+      // Aspect lock badge
+      if (aspectLocked){
+        drawingCtx.fillStyle='rgba(20,184,166,0.85)';
+        drawingCtx.fillRect(rect.x, rect.y-22, 90, 18);
+        drawingCtx.fillStyle='#0b1220';
+        drawingCtx.font='12px Inter, sans-serif';
+        drawingCtx.fillText('Aspect locked', rect.x+8, rect.y-9);
+      }
+
+      drawingCtx.restore();
+    }
+
+    function cropHandles(r){
+      // Return 8 handle centers
+      return [
+        {name:'nw', x:r.x, y:r.y},
+        {name:'n',  x:r.x + r.w/2, y:r.y},
+        {name:'ne', x:r.x + r.w, y:r.y},
+        {name:'e',  x:r.x + r.w, y:r.y + r.h/2},
+        {name:'se', x:r.x + r.w, y:r.y + r.h},
+        {name:'s',  x:r.x + r.w/2, y:r.y + r.h},
+        {name:'sw', x:r.x, y:r.y + r.h},
+        {name:'w',  x:r.x, y:r.y + r.h/2},
+      ];
+    }
+
+    function hitHandle(pt, r){
+      const hs = HANDLE_SIZE;
+      const handles = cropHandles(r);
+      for (const h of handles){
+        if (Math.abs(pt.x - h.x) <= hs/2 && Math.abs(pt.y - h.y) <= hs/2) return h.name;
+      }
+      // inside rect?
+      if (pt.x >= r.x && pt.x <= r.x + r.w && pt.y >= r.y && pt.y <= r.y + r.h) return 'move';
+      return null;
+    }
+
+    function startNewCrop(){
+      state.crop.active = true;
+      state.crop.rect = null;
+      state.crop.drag = { mode: null, offsetX: 0, offsetY: 0 };
+      drawAll();
+    }
+
+    // Modified applyCrop function to save cropped image and delete original
+    async function applyCrop(){
+      const imgWrap = state.images[state.currentImageIndex];
+      if (!imgWrap || !state.crop.rect) { showMessage('No selection', 'Create a crop selection first.', '⚠️'); return; }
+
+      // sanitize and ensure minimal size
+      let {x,y,w,h} = state.crop.rect;
+      x = Math.round(clamp(x, 0, imageCanvas.width-1));
+      y = Math.round(clamp(y, 0, imageCanvas.height-1));
+      w = Math.round(clamp(w, MIN_CROP, imageCanvas.width - x));
+      h = Math.round(clamp(h, MIN_CROP, imageCanvas.height - y));
+      if (w < MIN_CROP || h < MIN_CROP){ showMessage('Too small', 'Crop is too small.', '❗'); return; }
+
+      // Create an offscreen canvas with the cropped pixels
+      const off = document.createElement('canvas');
+      off.width = w; off.height = h;
+      const offCtx = off.getContext('2d', { willReadFrequently: true });
+      offCtx.imageSmoothingEnabled = false;
+      offCtx.drawImage(imageCanvas, x, y, w, h, 0, 0, w, h);
+
+      // Convert to blob and then save
+      off.toBlob(async (blob) => {
+          try {
+              const arrayBuffer = await blob.arrayBuffer();
+              const originalExt = path.extname(imgWrap.name);
+              const baseName = path.basename(imgWrap.name, originalExt);
+              const newFileName = `${baseName}_cropped_${Date.now()}.png`;
+              const newFilePath = path.join(state.projectDirectory, newFileName);
+
+              // Save the new cropped image
+              const result = await window.api.writeFileToProject(arrayBuffer, newFilePath);
+              if (!result.success) {
+                  throw new Error('Failed to save cropped image');
+              }
+
+              // Delete the original image
+              const originalFilePath = imgWrap.originalUrl.substring(7); // Remove 'file://' prefix
+              const deleteResult = await window.api.deleteFile(originalFilePath);
+              if (!deleteResult.success) {
+                  console.warn('Failed to delete original image:', deleteResult.error);
+              }
+
+              // Update the image object
+              imgWrap.name = newFileName;
+              imgWrap.url = `file://${newFilePath}`;
+              imgWrap.originalUrl = `file://${newFilePath}`;
+
+              // Create an image from the blob for immediate display
+              const url = URL.createObjectURL(blob);
+              const newImg = new Image();
+              newImg.onload = () => {
+                  URL.revokeObjectURL(url);
+                  imgWrap.imgObject = newImg;
+                  imgWrap.originalWidth = newImg.width;
+                  imgWrap.originalHeight = newImg.height;
+
+                  // Translate existing segmentation points by (-x, -y) and clamp into new bounds
+                  if (Array.isArray(imgWrap.segmentationMasks) && imgWrap.segmentationMasks.length){
+                      imgWrap.segmentationMasks.forEach(m=>{
+                          m.points = m.points.map(p=>{
+                              const nx = clamp(p.x - x, 0, w);
+                              const ny = clamp(p.y - y, 0, h);
+                              return { x:+nx.toFixed(2), y:+ny.toFixed(2) };
+                          });
+                      });
+                  }
+
+                  state.mode = 'classification';
+                  state.crop.active = false;
+                  state.crop.rect = null;
+                  loadingIndicator.classList.add('hidden');
+                  markAsUnsaved();
+                  drawAll();
+                  showMessage('Cropped', `Applied crop: ${w}×${h}. Original image deleted.`, '✂️');
+              };
+              newImg.onerror = () => {
+                  loadingIndicator.classList.add('hidden');
+                  showMessage('Error', 'Failed to load cropped image.', '❌');
+              };
+              newImg.src = url;
+          } catch (error) {
+              loadingIndicator.classList.add('hidden');
+              showMessage('Error', error.message, '❌');
+          }
+      }, 'image/png');
+    }
+
+    // ===== Image Loading =====
+    async function loadAndDrawImage(index) {
+        if (index < 0 || index >= state.images.length) return;
+        state.currentImageIndex = index;
+        const current = state.images[index];
+        
+        if (current.imgObject) {
+            state.originalImageWidth = current.imgObject.width;
+            state.originalImageHeight = current.imgObject.height;
+            drawAll();
+            return;
+        }
+        
+        state.isLoading = true;
+        updateUI();
+        
+        try {
+            // For file URLs, we need to convert them to data URLs
+            if (current.url.startsWith('file://')) {
+                const filePath = current.url.substring(7); // Remove 'file://' prefix
+                const dataUrl = await window.api.getFileDataUrl(filePath);
+                
+                if (!dataUrl) {
+                    throw new Error('Failed to load image data');
+                }
+                
+                const img = new Image();
+                img.onload = () => {
+                    current.imgObject = img;
+                    current.originalWidth = img.width;
+                    current.originalHeight = img.height;
+                    state.originalImageWidth = img.width;
+                    state.originalImageHeight = img.height;
+                    state.isLoading = false;
+                    drawAll();
+                };
+                
+                img.onerror = () => {
+                    state.isLoading = false;
+                    updateUI();
+                    showMessage('Error', `Failed to load image: ${current.name}`, '❌');
+                };
+                
+                img.src = dataUrl;
+            } else {
+                // For data URLs, load directly
+                const img = new Image();
+                img.onload = () => {
+                    current.imgObject = img;
+                    current.originalWidth = img.width;
+                    current.originalHeight = img.height;
+                    state.originalImageWidth = img.width;
+                    state.originalImageHeight = img.height;
+                    state.isLoading = false;
+                    drawAll();
+                };
+                
+                img.onerror = () => {
+                    state.isLoading = false;
+                    updateUI();
+                    showMessage('Error', `Failed to load image: ${current.name}`, '❌');
+                };
+                
+                img.src = current.url;
+            }
+        } catch (error) {
+            state.isLoading = false;
+            updateUI();
+            showMessage('Error', `Failed to load image: ${error.message}`, '❌');
+        }
+    }
+
+    // ===== Project Management =====
+    async function createNewProject() {
+      try {
+        const directory = await window.api.selectDirectory();
+        if (!directory) return;
+
+        // Check if directory is effectively empty (ignoring system files)
+        const emptyResult = await window.api.isDirectoryEmpty(directory);
+        if (!emptyResult.empty) {
+          // Show a more informative message
+          showMessage(
+            'Directory Not Empty', 
+            'The directory contains files that may be hidden. ' +
+            'Please select an empty directory or create a new one to start a project.',
+            '⚠️'
+          );
+          return;
+        }
+
+        // Rest of the function remains the same...
+        state.projectDirectory = directory;
+        state.images = [];
+        state.currentImageIndex = -1;
+        state.projectData = {
+          version: '1.0',
+          createdAt: new Date().toISOString(),
+          images: []
+        };
+        
+        state.isSaved = true;
+        updateTitle();
+
+        updateUI();
+        showMessage('Project Created', `New project created at: ${directory}`, '✅');
+      } catch (error) {
+        showMessage('Error', `Failed to create project: ${error.message}`, '❌');
+      }
+    }
+
+    async function loadProject() {
+        try {
+            const directory = await window.api.selectDirectory();
+            if (!directory) return;
+
+            // Clean up project directory first
+            state.isLoading = true;
+            updateUI();
+            const cleanupResult = await window.api.cleanupProject(directory);
+            if (!cleanupResult.success) {
+                console.warn('Project cleanup failed:', cleanupResult.error);
+                // Continue loading even if cleanup fails
+            }
+
+            // Load project data
+            const result = await window.api.loadProjectData(directory);
+            if (!result.success) {
+                showMessage('Error', result.error, '❌');
+                state.isLoading = false;
+                updateUI();
+                return;
+            }
+
+            state.projectDirectory = directory;
+            state.projectData = result.data;
+
+            // Load images from project directory
+            const imagesResult = await window.api.readProjectImages(directory);
+            if (!imagesResult.success) {
+                showMessage('Error', imagesResult.error, '❌');
+                state.isLoading = false;
+                updateUI();
+                return;
+            }
+
+            // Clear current images
+            state.images = [];
+
+            // Create image objects for each file
+            for (const imageFile of imagesResult.files) {
+                // Find image data in project file
+                const imageData = state.projectData.images.find(img => img.fileName === imageFile.name);
+                
+                state.images.push({
+                    id: imageFile.name.split('.')[0], // Use filename without extension as ID
+                    name: imageFile.name,
+                    url: `file://${imageFile.path}`,
+                    originalUrl: `file://${imageFile.path}`,
+                    originalWidth: 0,
+                    originalHeight: 0,
+                    imgObject: null,
+                    labels: imageData ? imageData.labels : [],
+                    segmentationMasks: imageData ? imageData.segmentationMasks : []
+                });
+            }
+
+            // Initialize label usage from project data
+            initializeLabelUsageFromProject();
+            
+            if (state.images.length > 0) {
+                state.currentImageIndex = 0;
+                loadAndDrawImage(0);
+            }
+            
+            state.isSaved = true;
+            updateTitle();
+
+            updateUI();
+            showMessage('Project Loaded', `Project loaded from: ${directory}`, '✅');
+        } catch (error) {
+            showMessage('Error', `Failed to load project: ${error.message}`, '❌');
+            state.isLoading = false;
+            updateUI();
+        }
+    }
+
+    async function saveProject(isAutoSave = false) {
+        try {
+            if (!state.projectDirectory) {
+                if (!isAutoSave) showMessage('Error', 'No project directory selected', '❌');
+                return;
+            }
+
+            // Prepare project data
+            const projectData = {
+                version: '1.0',
+                createdAt: state.projectData ? state.projectData.createdAt : new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+                images: state.images.map(img => ({
+                    fileName: img.name,
+                    originalWidth: img.originalWidth,
+                    originalHeight: img.originalHeight,
+                    labels: img.labels,
+                    segmentationMasks: img.segmentationMasks
+                }))
+            };
+
+            // Save project data
+            const result = await window.api.saveProjectData(projectData, state.projectDirectory);
+            if (!result.success) {
+                if (!isAutoSave) showMessage('Error', result.error, '❌');
+                return;
+            }
+            
+            state.isSaved = true;
+            updateTitle();
+
+            if (!isAutoSave) showMessage('Project Saved', `Project saved to: ${state.projectDirectory}`, '✅');
+        } catch (error) {
+            if (!isAutoSave) showMessage('Error', `Failed to save project: ${error.message}`, '❌');
+        }
+    }
+
+    // ===== Batch Image Processing =====
+    async function processBatchImages(files) {
+        if (!files.length) return;
+        
+        if (!state.projectDirectory) {
+            showMessage('Error', 'Please create or load a project first', '❌');
+            return;
+        }
+        
+        state.isBatchProcessing = true;
+        state.isLoading = true;
+        updateUI();
+        
+        const toPush = [];
+        const totalFiles = files.length;
+        let processed = 0;
+        
+        for (const file of files) {
+            try {
+                batchProgressText.textContent = `Processing: ${file.name}`;
+                batchProgressPercent.textContent = `${Math.round((processed / totalFiles) * 100)}%`;
+                batchProgressBar.style.width = `${(processed / totalFiles) * 100}%`;
+                
+                const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+                const destinationPath = window.api.path.join(state.projectDirectory, safeFileName);
+                
+                // Read file as ArrayBuffer and send to main process
+                const arrayBuffer = await file.arrayBuffer();
+                
+                const result = await window.api.writeFileToProject(arrayBuffer, destinationPath);
+                if (!result.success) {
+                    console.error(`Failed to copy file: ${file.name}`);
+                    continue;
+                }
+                
+                toPush.push({
+                    id: crypto.randomUUID(),
+                    name: safeFileName,
+                    url: `file://${destinationPath}`,
+                    originalUrl: `file://${destinationPath}`,
+                    originalWidth: 0,
+                    originalHeight: 0,
+                    labels: [],
+                    segmentationMasks: [],
+                    imgObject: null
+                });
+                
+                processed++;
+            } catch (error) {
+                console.error('Error processing image:', error);
+            }
+        }
+        
+        if (toPush.length > 0) {
+            state.images.push(...toPush);
+            markAsUnsaved();
+            
+            // Load the first image from the batch
+            if (state.images.length === toPush.length) {
+                loadAndDrawImage(0);
+            }
+        }
+        
+        state.isBatchProcessing = false;
+        state.isLoading = false;
+        updateUI();
+        
+        showMessage('Images Added', `Added ${toPush.length} images to the project`, '✅');
+    }
+
+    fileInput.addEventListener('change', (e) => {
+        const files = [...e.target.files];
+        if (!files.length) return;
+        
+        processBatchImages(files);
+        e.target.value = '';
+    });
+
+    // ===== Navigation =====
+    prevBtn.addEventListener('click',()=>{ if (state.currentImageIndex>0) loadAndDrawImage(state.currentImageIndex-1); });
+    nextBtn.addEventListener('click',()=>{ if (state.currentImageIndex<state.images.length-1) loadAndDrawImage(state.currentImageIndex+1); });
+    document.addEventListener('keydown',(e)=>{ if (e.key==='ArrowRight') nextBtn.click(); else if (e.key==='ArrowLeft') prevBtn.click(); });
+
+    function showAllImagesModal(){ if (!state.images.length){ showMessage('No Images','Please add some images first.','⚠️'); return; } renderImageList(); allImagesModal.style.display='flex'; }
+    function closeAllImagesModal(){ allImagesModal.style.display='none'; }
+    function renderImageList(filter=''){
+      imageListContainer.innerHTML='';
+      state.images.filter(img=>img.name.toLowerCase().includes(filter.toLowerCase())).forEach((img)=>{
+        const idx = state.images.indexOf(img);
+        const div=document.createElement('div'); 
+        div.textContent=`${idx+1}. ${truncateFileName(img.name)}`;
+        div.className=`image-list-item ${idx===state.currentImageIndex?'selected':''}`;
+        div.onclick=()=>{ loadAndDrawImage(idx); closeAllImagesModal(); };
+        imageListContainer.appendChild(div);
+      });
+    }
+    imageSearchInput.addEventListener('input',e=>renderImageList(e.target.value));
+
+    // ===== Mode Switch =====
+    function resetWorkInProgress(){
+      state.tempSegmentPoints=[]; state.isDrawing=false;
+      state.draggingVertex={active:false,index:-1};
+      state.crop.active = false; state.crop.rect = null; state.crop.drag = { mode:null, offsetX:0, offsetY:0 };
+    }
+
+    classificationModeBtn.addEventListener('click',()=>{ state.mode='classification'; resetWorkInProgress(); drawAll(); updateUI(); });
+    segmentationModeBtn.addEventListener('click',()=>{ state.mode='segmentation'; resetWorkInProgress(); drawAll(); updateUI(); });
+    cropModeBtn.addEventListener('click',()=>{ state.mode='crop'; resetWorkInProgress(); state.crop.active=true; drawAll(); updateUI(); });
+
+    polygonBtn.addEventListener('click',()=>{ state.segmentationMode='polygon'; state.tempSegmentPoints=[]; state.isDrawing=false; drawAll(); updateUI(); });
+    freehandBtn.addEventListener('click',()=>{ state.segmentationMode='freehand'; state.tempSegmentPoints=[]; state.isDrawing=false; drawAll(); updateUI(); });
+
+    toggleLoupeBtn.addEventListener('click',()=>{ state.loupeEnabled=!state.loupeEnabled; updateLoupe(); updateUI(); });
+    toggleSnapBtn.addEventListener('click',()=>{ state.snapToFirst=!state.snapToFirst; toggleSnapBtn.classList.toggle('selected-mode', state.snapToFirst); });
+
+    // ===== Project Button Events =====
+    newProjectBtn.addEventListener('click', createNewProject);
+    loadProjectBtn.addEventListener('click', loadProject);
+    saveProjectBtn.addEventListener('click', () => saveProject(false));
+
+    // ===== Classification =====
+    function addClassificationLabel(label){
+      if (state.currentImageIndex===-1){ showMessage('No Image','Please load an image first.','⚠️'); return; }
+      const img = state.images[state.currentImageIndex];
+      if (!label){
+        const l = newClassificationInput.value.trim(); if (!l) return; label=l; newClassificationInput.value='';
+      }
+      if (!img.labels.includes(label)){ 
+        img.labels.push(label); 
+        trackLabelUsage('classification', label); 
+        markAsUnsaved();
+        updateUI(); 
+      }
+      else { showMessage('Duplicate Label',`Label "${label}" already exists.`,'❗'); }
+    }
+    addClassificationBtn.addEventListener('click',()=>addClassificationLabel());
+    newClassificationInput.addEventListener('keydown',e=>{ if (e.key==='Enter') addClassificationLabel(); });
+
+    // ===== Segmentation (Polygon & Freehand) =====
+    function finishSegment(){
+      if (state.tempSegmentPoints.length < 3){ showMessage('Invalid Segment','A segment must have at least 3 points.','❗'); state.tempSegmentPoints=[]; drawAll(); return; }
+      segmentNameInput.value='';
+      renderCommonLabels(getMostUsedLabels('segmentation'), commonLabelsInModal, (label)=>{ segmentNameInput.value=label; });
+      segmentNameModal.style.display='flex';
+    }
+
+    function commitSegment(name){
+      const current = state.images[state.currentImageIndex];
+      current.segmentationMasks.push({ id: crypto.randomUUID(), name, points: state.tempSegmentPoints.map(p=>({x:+p.x.toFixed(2), y:+p.y.toFixed(2)})) });
+      trackLabelUsage('segmentation', name);
+      state.tempSegmentPoints=[]; 
+      markAsUnsaved();
+      segmentNameModal.style.display='none'; 
+      drawAll();
+    }
+
+    function removeMask(id) {
+      const masks = state.images[state.currentImageIndex].segmentationMasks;
+      const i = masks.findIndex(m => m.id === id);
+      if (i > -1) {
+        const removedMask = masks[i];
+        masks.splice(i, 1);
+        untrackLabelUsage('segmentation', removedMask.name);
+        markAsUnsaved();
+        drawAll();
+      }
+    }
+
+    function tryCloseIfNearFirst(pt){
+      if (!state.snapToFirst || state.tempSegmentPoints.length<3) return false;
+      const first = state.tempSegmentPoints[0]; return dist(pt, first) <= CLOSE_RADIUS;
+    }
+
+    function hitVertex(pt){
+      for (let i=0;i<state.tempSegmentPoints.length;i++) if (dist(pt, state.tempSegmentPoints[i]) <= 8) return i; return -1;
+    }
+
+    // NEW: Finish button handler (fix)
+    finishPolygonBtn.addEventListener('click', ()=>{
+      if (state.mode==='segmentation' && state.segmentationMode==='polygon'){
+        finishSegment();
+      }
+    });
+
+    // NEW: Undo button handler (fix)
+    undoPointBtn.addEventListener('click', ()=>{
+      if (state.mode!=='segmentation' || state.tempSegmentPoints.length===0) return;
+      // If dragging a vertex, cancel the drag first
+      if (state.draggingVertex.active){ state.draggingVertex={active:false,index:-1}; }
+      // Remove the last sampled point (works for polygon and freehand)
+      state.tempSegmentPoints.pop();
+      drawAll();
+    });
+
+    // ===== Canvas Events =====
+    drawingCanvas.addEventListener('mousedown', (e)=>{
+      const pt = getCanvasCoordinates(e);
+      if (state.currentImageIndex===-1) return;
+      if (state.mode==='segmentation'){
+        if (state.segmentationMode==='polygon'){
+          const index = hitVertex(pt);
+          if (index>-1){ state.draggingVertex = { active:true, index }; return; }
+          state.tempSegmentPoints.push(pt); drawAll();
+        } else { // freehand
+          state.isDrawing = true; state.tempSegmentPoints = [pt];
+        }
+      } else if (state.mode==='crop'){
+        if (!state.crop.active) state.crop.active = true;
+        // Start new rect if none or user clicked outside current rect
+        if (!state.crop.rect){
+          state.crop.rect = { x: pt.x, y: pt.y, w: 1, h: 1 };
+          state.crop.drag.mode = 'se'; // grow from start
+        } else {
+          const mode = hitHandle(pt, state.crop.rect);
+          if (mode){
+            state.crop.drag.mode = mode;
+            state.crop.drag.offsetX = pt.x - state.crop.rect.x;
+            state.crop.drag.offsetY = pt.y - state.crop.rect.y;
+          } else {
+            // start a fresh selection
+            state.crop.rect = { x: pt.x, y: pt.y, w: 1, h: 1 };
+            state.crop.drag.mode = 'se';
+          }
+        }
+        drawAll();
+      }
+    });
+
+    drawingCanvas.addEventListener('mousemove', (e)=>{
+      const pt = getCanvasCoordinates(e); state.mousePosition = pt;
+
+      // Loupe side
+      const midPoint = imageCanvas.width / 2;
+      state.loupePosition = pt.x < midPoint ? 'right' : 'left';
+
+      if (state.mode==='segmentation'){
+        if (state.segmentationMode==='polygon'){
+          if (state.draggingVertex.active){ state.tempSegmentPoints[state.draggingVertex.index] = pt; drawAll(); }
+          else if (state.tempSegmentPoints.length) { drawAll(); }
+        } else if (state.segmentationMode==='freehand' && state.isDrawing){ state.tempSegmentPoints.push(pt); drawAll(); }
+      } else if (state.mode==='crop' && state.crop.active && state.crop.drag.mode){
+        let r = state.crop.rect;
+        let nx=r.x, ny=r.y, nw=r.w, nh=r.h;
+
+        const right = r.x + r.w, bottom = r.y + r.h;
+        const keepAspect = state.crop.aspectLocked && state.crop.aspect;
+
+        function applyAspect(side){
+          if (!keepAspect) return;
+          const targetAR = state.crop.aspect;
+          if (side==='se' || side==='ne' || side==='sw' || side==='nw'){
+            const dw = (pt.x - r.x);
+            const dh = (pt.y - r.y);
+            if (Math.abs(dw) > Math.abs(dh)) nh = Math.round(nw / targetAR);
+            else nw = Math.round(nh * targetAR);
+          } else if (side==='e' || side==='w'){
+            nh = Math.round(nw / targetAR);
+          } else if (side==='n' || side==='s'){
+            nw = Math.round(nh * targetAR);
+          }
+        }
+
+        switch(state.crop.drag.mode){
+          case 'move':
+            nx = clamp(pt.x - state.crop.drag.offsetX, 0, imageCanvas.width - r.w);
+            ny = clamp(pt.y - state.crop.drag.offsetY, 0, imageCanvas.height - r.h);
+            break;
+          case 'se':
+            nw = clamp(pt.x - r.x, MIN_CROP, imageCanvas.width - r.x);
+            nh = clamp(pt.y - r.y, MIN_CROP, imageCanvas.height - r.y);
+            applyAspect('se');
+            break;
+          case 'ne':
+            nw = clamp(pt.x - r.x, MIN_CROP, imageCanvas.width - r.x);
+            nh = clamp(bottom - pt.y, MIN_CROP, bottom);
+            applyAspect('ne');
+            ny = bottom - nh;
+            break;
+          case 'sw':
+            nw = clamp(right - pt.x, MIN_CROP, right);
+            nh = clamp(pt.y - r.y, MIN_CROP, imageCanvas.height - r.y);
+            applyAspect('sw');
+            nx = right - nw;
+            break;
+          case 'nw':
+            nw = clamp(right - pt.x, MIN_CROP, right);
+            nh = clamp(bottom - pt.y, MIN_CROP, bottom);
+            applyAspect('nw');
+            nx = right - nw; ny = bottom - nh;
+            break;
+          case 'e':
+            nw = clamp(pt.x - r.x, MIN_CROP, imageCanvas.width - r.x);
+            applyAspect('e');
+            break;
+          case 'w':
+            nw = clamp(right - pt.x, MIN_CROP, right);
+            applyAspect('w');
+            nx = right - nw;
+            break;
+          case 's':
+            nh = clamp(pt.y - r.y, MIN_CROP, imageCanvas.height - r.y);
+            applyAspect('s');
+            break;
+          case 'n':
+            nh = clamp(bottom - pt.y, MIN_CROP, bottom);
+            applyAspect('n');
+            ny = bottom - nh;
+            break;
+        }
+
+        // clamp into image
+        nx = clamp(nx, 0, imageCanvas.width-1);
+        ny = clamp(ny, 0, imageCanvas.height-1);
+        if (nx+nw>imageCanvas.width) nw = imageCanvas.width - nx;
+        if (ny+nh>imageCanvas.height) nh = imageCanvas.height - ny;
+
+        state.crop.rect = { x: Math.round(nx), y: Math.round(ny), w: Math.round(nw), h: Math.round(nh) };
+        drawAll();
+      }
+
+      requestAnimationFrame(drawAll);
+    });
+
+    drawingCanvas.addEventListener('mouseup', ()=>{
+      if (state.mode==='segmentation'){
+        if (state.segmentationMode==='freehand' && state.isDrawing){ state.isDrawing=false; finishSegment(); }
+        if (state.segmentationMode==='polygon' && state.draggingVertex.active){ state.draggingVertex={active:false,index:-1}; drawAll(); }
+      } else if (state.mode==='crop'){
+        state.crop.drag.mode = null;
+        // Initialize aspect after first rectangle committed
+        if (state.crop.rect && state.crop.aspectLocked && !state.crop.aspect){
+          state.crop.aspect = +(state.crop.rect.w / state.crop.rect.h).toFixed(6);
+        }
+      }
+    });
+
+    drawingCanvas.addEventListener('click', (e)=>{
+      if (state.mode==='segmentation' && state.segmentationMode==='polygon' && state.currentImageIndex!==-1){
+        const pt = getCanvasCoordinates(e); if (tryCloseIfNearFirst(pt)){ finishSegment(); }
+      }
+    });
+
+    drawingCanvas.addEventListener('dblclick', ()=>{ if (state.mode==='segmentation' && state.segmentationMode==='polygon' && state.currentImageIndex!==-1) finishSegment(); });
+
+    // ===== Crop buttons & keys =====
+    newCropBtn.addEventListener('click', ()=> startNewCrop());
+    toggleAspectBtn.addEventListener('click', ()=>{
+      state.crop.aspectLocked = !state.crop.aspectLocked;
+      toggleAspectBtn.classList.toggle('selected-mode', state.crop.aspectLocked);
+      if (state.crop.aspectLocked){
+        // set aspect from current rect or default to 1:1
+        state.crop.aspect = state.crop.rect ? +(state.crop.rect.w / state.crop.rect.h).toFixed(6) : 1.0;
+      } else {
+        state.crop.aspect = null;
+      }
+      drawAll();
+    });
+    applyCropBtn.addEventListener('click', ()=> applyCrop());
+    cancelCropBtn.addEventListener('click', ()=>{ state.crop.active=false; state.crop.rect=null; drawAll(); });
+
+    document.addEventListener('keydown', (e)=>{
+      if (e.key.toLowerCase()==='z') undoPointBtn.click();
+      if (e.key==='Escape'){
+        if (state.mode==='segmentation'){ state.tempSegmentPoints=[]; }
+        if (state.mode==='crop'){ state.crop.rect=null; }
+        drawAll();
+      }
+      if (e.key==='Enter'){
+        if (segmentNameModal.style.display==='flex'){ saveSegmentBtn.click(); }
+        else if (state.mode==='crop'){ applyCropBtn.click(); }
+      }
+    });
+
+    saveSegmentBtn.addEventListener('click', ()=>{
+      const name = segmentNameInput.value.trim();
+      if (!name){ showMessage('Invalid Name','Please enter a name for the segment.','❗'); return; }
+      commitSegment(name);
+    });
+    cancelSegmentBtn.addEventListener('click', ()=>{ state.tempSegmentPoints=[]; segmentNameModal.style.display='none'; drawAll(); });
+
+    async function removeCurrentImage(){
+      if (state.currentImageIndex===-1){ showMessage('No Image','There is no image to remove.','⚠️'); return; }
+      
+      const current = state.images[state.currentImageIndex];
+      
+      // Remove label usage for this image's labels
+      current.labels.forEach(label => {
+        untrackLabelUsage('classification', label);
+      });
+      
+      current.segmentationMasks.forEach(mask => {
+        untrackLabelUsage('segmentation', mask.name);
+      });
+      
+      // Delete the image file from the filesystem
+      if (current.url.startsWith('file://')) {
+        const filePath = current.url.substring(7);
+        const result = await window.api.deleteFile(filePath);
+        if (!result.success) {
+          showMessage('Error', `Failed to delete image file: ${result.error}`, '❌');
+          return;
+        }
+      }
+      
+      state.images.splice(state.currentImageIndex,1);
+      markAsUnsaved();
+      if (!state.images.length){ state.currentImageIndex=-1; drawAll(); }
+      else { loadAndDrawImage(Math.min(state.currentImageIndex, state.images.length-1)); }
+      showMessage('Image Removed','The current image has been removed from the list and deleted from the filesystem.','🗑️');
+    }
+    
+    function restoreImage(){
+      if (state.currentImageIndex===-1){ showMessage('No Image','Please load an image first.','⚠️'); return; }
+      const current = state.images[state.currentImageIndex];
+      const img=new Image();
+      img.onload=()=>{
+        current.url=current.originalUrl;
+        current.segmentationMasks=[]; // original coordinates invalid after any edits; reset to clean state
+        current.imgObject=img;
+        current.originalWidth=img.width; current.originalHeight=img.height;
+        state.mode='classification';
+        markAsUnsaved();
+        drawAll();
+        showMessage('Image Restored','The image has been restored to its original state.','🔄');
+      };
+      img.src=current.originalUrl;
+    }
+    removeBtn.addEventListener('click', removeCurrentImage);
+    restoreBtn.addEventListener('click', restoreImage);
+
+    // ===== Export =====
+    exportDataBtn.addEventListener('click', ()=>{
+      const data = state.images.map(img=>({
+        name: img.name,
+        labels: img.labels,
+        segmentationMasks: img.segmentationMasks.map(m=>({ id:m.id, name:m.name, points:m.points })),
+        originalUrl: img.originalUrl,
+        originalDimensions: { width: img.originalWidth, height: img.originalHeight }
+      }));
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='labeled_data.json'; a.click(); URL.revokeObjectURL(url);
+      showMessage('Export Successful','Your labeled data has been exported as labeled_data.json.','✅');
+    });
+
+    // ===== Menu Event Handlers =====
+    window.api.onMenuNewProject(() => {
+        createNewProject();
+    });
+
+    window.api.onMenuLoadProject(() => {
+        loadProject();
+    });
+
+    window.api.onMenuSaveProject(() => {
+        saveProject(false);
+    });
+
+    window.api.onMenuExport(() => {
+        exportDataBtn.click();
+    });
+
+    // ===== Before Unload Handler =====
+    window.addEventListener('beforeunload', (e) => {
+      if (!state.isSaved && state.projectDirectory) {
+        // Save synchronously before closing
+        const result = window.api.saveProjectDataSync(prepareProjectData(), state.projectDirectory);
+        if (result.success) {
+          state.isSaved = true;
+        }
+      }
+    });
+
+    function prepareProjectData() {
+      return {
+        version: '1.0',
+        createdAt: state.projectData ? state.projectData.createdAt : new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        images: state.images.map(img => ({
+          fileName: img.name,
+          originalWidth: img.originalWidth,
+          originalHeight: img.originalHeight,
+          labels: img.labels,
+          segmentationMasks: img.segmentationMasks
+        }))
+      };
+    }
+
+    // ===== Resize & Init =====
+    window.addEventListener('resize', ()=> requestAnimationFrame(drawAll));
+    window.onload = function() {
+      // Ensure initial UI reflects defaults (loupe on, snap on)
+      updateUI();
+      updateTitle();
+    };
+  </script>
+</body>
+</html>
