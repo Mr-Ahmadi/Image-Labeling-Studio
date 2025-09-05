@@ -64,7 +64,7 @@ npm start
 npm run dist
 ```
 
-
+---
 
 ## 📬 Contact
 
